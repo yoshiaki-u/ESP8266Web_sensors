@@ -17,8 +17,8 @@
 // public TwoWire(int SDA, int SCL)
 
 //#define SERIAL_DEBUG 1
-#define INIT_MESSAGE 1
-#define JSON_MESSAGE 1
+//#define INIT_MESSAGE 1
+//#define JSON_MESSAGE 1
 
 #define BMSDA   (0)
 #define BMSCL   (2)
@@ -180,29 +180,29 @@ void json_handler(void){
   if (get_sensorsout(&bmsval, &ahtval, &ensval) == 0){
     return;
   }
-  // {"device":"BME280","temparature":"摂氏温度","humidity":"湿度","pressure":"気圧ヘクトパスカル","altitude":"高度"}
+  // {"BME280" : {"temparature":摂氏温度,"humidity":湿度,"pressure":気圧ヘクトパスカル,"altitude":高度} ,
   if (bmsval.st) {
-    bmx_result = "{\"device\":\"BME280\",\"temparature\":\"" + String(bmsval.temp,2) + "\",";
+    bmx_result = "{\"BME280\": {\"temparature\":" + String(bmsval.temp,2) + ",";
     if (bmsval.hum) {
-      bmx_result += "\"pressure\":\""+ String(bmsval.hum,1) + "\",";
+      bmx_result += "\"humidity\":"+ String(bmsval.hum,1) + ",";
     }
-    bmx_result += "\"pressure\":\"" + String(bmsval.hPa,2) + "\"," 
-    + "\"altitude\":" + String(bmsval.alt,1) + "\"}";
+    bmx_result += "\"pressure\":" + String(bmsval.hPa,2) + "," 
+    + "\"altitude\":" + String(bmsval.alt,1) + "} ,";
   } else {
     bmx_result = "";
   }
-  // {"device":"AHT21","temparature":"摂氏温度","humidity":"湿度"}
+  //  "AHT21": { "temparature":摂氏温度,"humidity":湿度} ,
   if (ahtval.st == AHTX_OK) {
-    aht_result = "{\"device\":\"AHT21\",\"temparature\":\"" + String(ahtval.temp,2) + "\",\"humidity\":\"" + String(ahtval.hum,1) + "\"}";
+    aht_result = "\"AHT21\": {\"temparature\":" + String(ahtval.temp,2) + ",\"humidity\":" + String(ahtval.hum,1) + "} ,";
   } else {
     aht_result = "";
   }
-  // {"device":"ENS160", "status":"ステータスコード", "AQI":"AQI値", "TVOC":"揮発性有機化合物濃度", "ECO2":"等価二酸化炭素濃度"}
-  ens_result = "{\"device\":\"ENS160\",\"status\":\"" + String(ahtval.hum,1) + "\",";
-  ens_result += "\"AQI\":\"" + String(ensval.aqi) + "\",\"TVOC\":\"" + String(ensval.tvoc) + "\",\"ECO2\":" + String(ensval.eco2) + "\"}";
+  // "ENS160": { "status":"ステータスコード", "AQI":AQI値, "TVOC":揮発性有機化合物濃度, "ECO2":等価二酸化炭素濃度} }
+  ens_result = "\"ENS160\": { \"status\":" + String(ensval.status) + ",";
+  ens_result += "\"AQI\":" + String(ensval.aqi) + ",\"TVOC\":" + String(ensval.tvoc) + ",\"ECO2\":" + String(ensval.eco2) + "} }";
   json = bmx_result + aht_result + ens_result;
 
-  server.send(200, "text/x-json", json);
+  server.send(200, "application/json", json);
 #ifdef JSON_MESSAGE
   Serial.println("output:");
   Serial.println(bmx_result);
@@ -268,7 +268,7 @@ void setup() {
   Serial.println("ENS160 ok!");
 #endif
   server.on("/", web_handler);
-  server.on("/json", json_handler);
+  server.on("/json/", json_handler);
   server.begin();
 #ifdef INIT_MESSAGE
   Serial.println("WebServer start");
