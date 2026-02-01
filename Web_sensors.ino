@@ -18,6 +18,7 @@
 
 //#define SERIAL_DEBUG 1
 #define INIT_MESSAGE 1
+#define JSON_MESSAGE 1
 
 #define BMSDA   (0)
 #define BMSCL   (2)
@@ -48,11 +49,11 @@ ESP8266WebServer server(80);
 #define HTML_FOOTER "</body></html>"
 
 struct BMS_V {
-  float temp, hPa, hem, alt;
+  float temp, hPa, hum, alt;
   int st;
 };
 struct AHT_V {
-  float temp, hem;
+  float temp, hum;
   AHTxStatus st;
 } ;
 struct ENS_V {
@@ -63,7 +64,7 @@ struct ENS_V {
 int get_sensorsout(BMS_V *bmsvp, AHT_V *ahtvp, ENS_V *ensvp){
   bmxtw.begin(BMSDA,BMSCL);
   delay(20);
-  bmsvp->st = bmx.read280(bmsvp->temp, bmsvp->hPa, bmsvp->hem);
+  bmsvp->st = bmx.read280(bmsvp->temp, bmsvp->hPa, bmsvp->hum);
   bmsvp->alt = bmx.readAltitude(SEA_LEVEL_HPA);
   if(bmsvp->st == 0){
 #ifdef SERIAL_DEBUG  
@@ -72,14 +73,14 @@ int get_sensorsout(BMS_V *bmsvp, AHT_V *ahtvp, ENS_V *ensvp){
   }
   tw.begin(ENSSDA,ENSSCL);
   delay(50);
-  ahtvp->st = aht.readTemperatureHumidity(ahtvp->temp,ahtvp->hem, 120);
+  ahtvp->st = aht.readTemperatureHumidity(ahtvp->temp,ahtvp->hum, 120);
   if (ahtvp->st != AHTX_OK){
 #ifdef SERIAL_DEBUG
     Serial.println("AHT21 read error");
 #endif
     ENS160.setTempAndHum(/*temperature=*/25.0, /*humidity=*/50.0);
   } else {
-    ENS160.setTempAndHum(ahtvp->temp, ahtvp->hem);
+    ENS160.setTempAndHum(ahtvp->temp, ahtvp->hum);
   }
   delay(200);
   ensvp->status = ENS160.getENS160Status();
@@ -93,7 +94,7 @@ int get_sensorsout(BMS_V *bmsvp, AHT_V *ahtvp, ENS_V *ensvp){
   } 
 }
 
-void web_handler() {
+void web_handler(void) {
   String html, bmx_result, aht_result, ens_result;
   BMS_V bmsval;
   AHT_V ahtval;
@@ -104,8 +105,8 @@ void web_handler() {
   }
   if (bmsval.st) {
     bmx_result = "<table border=\"1\"><tr><th rowspan=\"5\">BME280</th><th>温度</th><td>" + String(bmsval.temp,2) + " ℃</td></tr>";
-    if (bmsval.hem) {
-      bmx_result += "<tr><th>湿度</th><td>"+ String(bmsval.hem,1) + " %</td></tr>";
+    if (bmsval.hum) {
+      bmx_result += "<tr><th>湿度</th><td>"+ String(bmsval.hum,1) + " %</td></tr>";
     }
     bmx_result += "<tr><th>気圧</th><td>" + String(bmsval.hPa,2) + " </td><tr>" + "<tr><th>Alt</th><td>" 
     + String(bmsval.alt,1) + "m</td><tr></table>";
@@ -115,7 +116,7 @@ void web_handler() {
     Serial.print(" °C  ");
     if (bmx.hasHumidity()) { 
       Serial.print("H="); 
-      Serial.print((bmsval.hem),1); 
+      Serial.print((bmsval.hum),1); 
       Serial.print(" %  "); 
     }
     Serial.print("P="); 
@@ -131,10 +132,10 @@ void web_handler() {
   if (ahtval.st == AHTX_OK) {
     aht_result = "<table border=\"1\"><tr><th rowspan=\"3\">AHT21</th><th>温度</th><td>";
     aht_result += String(ahtval.temp,2) + " ℃</td></tr><tr><th>湿度</th><td>";
-    aht_result += String(ahtval.hem,1) + " %</td></tr></table>";
+    aht_result += String(ahtval.hum,1) + " %</td></tr></table>";
 #ifdef SERIAL_DEBUG
     Serial.print("T_C="); Serial.print(ahtval.temp, 2);
-    Serial.print(" RH_="); Serial.println(ahtval.hem, 2);
+    Serial.print(" RH_="); Serial.println(ahtval.hum, 2);
 #endif
   } else {
     aht_result = "";
@@ -169,6 +170,46 @@ void web_handler() {
   html +="";
   server.send(200, "text/html", html);
 }
+
+void json_handler(void){
+  String json, bmx_result, aht_result, ens_result;
+  BMS_V bmsval;
+  AHT_V ahtval;
+  ENS_V ensval;
+
+  if (get_sensorsout(&bmsval, &ahtval, &ensval) == 0){
+    return;
+  }
+  // {"device":"BME280","temparature":"摂氏温度","humidity":"湿度","pressure":"気圧ヘクトパスカル","altitude":"高度"}
+  if (bmsval.st) {
+    bmx_result = "{\"device\":\"BME280\",\"temparature\":\"" + String(bmsval.temp,2) + "\",";
+    if (bmsval.hum) {
+      bmx_result += "\"pressure\":\""+ String(bmsval.hum,1) + "\",";
+    }
+    bmx_result += "\"pressure\":\"" + String(bmsval.hPa,2) + "\"," 
+    + "\"altitude\":" + String(bmsval.alt,1) + "\"}";
+  } else {
+    bmx_result = "";
+  }
+  // {"device":"AHT21","temparature":"摂氏温度","humidity":"湿度"}
+  if (ahtval.st == AHTX_OK) {
+    aht_result = "{\"device\":\"AHT21\",\"temparature\":\"" + String(ahtval.temp,2) + "\",\"humidity\":\"" + String(ahtval.hum,1) + "\"}";
+  } else {
+    aht_result = "";
+  }
+  // {"device":"ENS160", "status":"ステータスコード", "AQI":"AQI値", "TVOC":"揮発性有機化合物濃度", "ECO2":"等価二酸化炭素濃度"}
+  ens_result = "{\"device\":\"ENS160\",\"status\":\"" + String(ahtval.hum,1) + "\",";
+  ens_result += "\"AQI\":\"" + String(ensval.aqi) + "\",\"TVOC\":\"" + String(ensval.tvoc) + "\",\"ECO2\":" + String(ensval.eco2) + "\"}";
+  json = bmx_result + aht_result + ens_result;
+
+  server.send(200, "text/x-json", json);
+#ifdef JSON_MESSAGE
+  Serial.println("output:");
+  Serial.println(bmx_result);
+  Serial.println(aht_result);
+  Serial.println(ens_result);
+#endif
+} 
 
 void setup() {
   Serial.begin(115200);
@@ -227,6 +268,7 @@ void setup() {
   Serial.println("ENS160 ok!");
 #endif
   server.on("/", web_handler);
+  server.on("/json", json_handler);
   server.begin();
 #ifdef INIT_MESSAGE
   Serial.println("WebServer start");
