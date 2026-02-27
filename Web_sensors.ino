@@ -41,12 +41,19 @@ const float    SEA_LEVEL_HPA = 1013.25f;
 
 ESP8266WebServer server(80); 
 // HTML
-#define HTML_HEADER "<!doctype html>"\
+#define HTML_HEADER_REFRESH "<!doctype html>"\
   "<html><head><meta charset=\"UTF-8\"/>"\
   "<meta name=\"viewport\" content=\"width=device-width\"/>"\
   "<meta http-equiv=\"refresh\" content=\"10;\">" \
   "</head><body>"
+
+#define HTML_HEADER "<!doctype html>"\
+  "<html><head><meta charset=\"UTF-8\"/>"\
+  "<meta name=\"viewport\" content=\"width=device-width\"/>"\
+  "</head><body>"
+
 #define HTML_FOOTER "</body></html>"
+
 
 struct BMS_V {
   float temp, hPa, hum, alt;
@@ -166,7 +173,7 @@ void web_handler(void) {
   }
 
   //HTML記述
-  html = HTML_HEADER + bmx_result + aht_result + ens_result + HTML_FOOTER;
+  html = HTML_HEADER_REFRESH + bmx_result + aht_result + ens_result + HTML_FOOTER;
   html +="";
   server.send(200, "text/html", html);
 }
@@ -210,6 +217,40 @@ void json_handler(void){
   Serial.println(ens_result);
 #endif
 } 
+
+void ens_standardmode(void){
+  String result,html;
+
+  ENStw.begin(ENSSDA,ENSSCL);
+  while( NO_ERR != ENS160.begin() ){
+#ifdef INIT_MESSAGE
+    Serial.println("Communication with device failed, please check connection");
+#endif
+    delay(3000);
+  }
+  ENS160.setPWRMode(ENS160_STANDARD_MODE);
+  result = "ENS160 standard mode";
+  html = HTML_HEADER + result +HTML_FOOTER;
+  html +="";
+  server.send(200, "text/html", html);
+}
+
+void ens_lowpowermode(void){
+    String result,html;
+
+  ENStw.begin(ENSSDA,ENSSCL);
+  while( NO_ERR != ENS160.begin() ){
+#ifdef INIT_MESSAGE
+    Serial.println("Communication with device failed, please check connection");
+#endif
+    delay(3000);
+  }
+  ENS160.setPWRMode(ENS160_SLEEP_MODE);
+  result = "ENS160 sleep mode";
+  html = HTML_HEADER + result +HTML_FOOTER;
+  html +="";
+  server.send(200, "text/html", html);
+}
 
 void setup() {
   Serial.begin(115200);
@@ -269,6 +310,8 @@ void setup() {
 #endif
   server.on("/", web_handler);
   server.on("/json/", json_handler);
+  server.on("/ens_std/", ens_standardmode);
+  server.on("/ens_lowpower/",ens_lowpowermode);
   server.begin();
 #ifdef INIT_MESSAGE
   Serial.println("WebServer start");
