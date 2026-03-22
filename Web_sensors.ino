@@ -11,8 +11,8 @@
 #include "wifidata.h"
 //
 // ENS160+AHT21
-//  SDA GPIO5
-//  SCL GPIO4
+//  SDA GPIO0
+//  SCL GPIO2
 // C:\Users\yoshiaki\AppData\Local\Arduino15\packages\esp8266\hardware\esp8266\3.1.2\libraries\Wire
 // public TwoWire(int SDA, int SCL)
 
@@ -20,19 +20,19 @@
 //#define INIT_MESSAGE 1
 //#define JSON_MESSAGE 1
 
-#define BMSDA   (0)
-#define BMSCL   (2)
-#define ENSSDA  (5)
-#define ENSSCL  (4)
+#define SDA   (0)
+#define SCL   (2)
 #define ENSaddr (0x53)
 
 #define I2C_COMMUNICATION 
-TwoWire ENStw;
-DFRobot_ENS160_I2C ENS160(&ENStw, ENSaddr);
-
-PTSolns_AHTx aht;
 TwoWire tw;
 TwoWire bmxtw;
+TwoWire ENStw;
+// DFRobot_ENS160_I2C ENS160(&ENStw, ENSaddr);
+DFRobot_ENS160_I2C ENS160(&tw, ENSaddr);
+
+PTSolns_AHTx aht;
+
 BMx280 bmx;
 
 const uint8_t  I2C_ADDR      = 0x76;     // Default address
@@ -69,8 +69,6 @@ struct ENS_V {
 };
 
 int get_sensorsout(BMS_V *bmsvp, AHT_V *ahtvp, ENS_V *ensvp){
-  bmxtw.begin(BMSDA,BMSCL);
-  delay(20);
   bmsvp->st = bmx.read280(bmsvp->temp, bmsvp->hPa, bmsvp->hum);
   bmsvp->alt = bmx.readAltitude(SEA_LEVEL_HPA);
   if(bmsvp->st == 0){
@@ -78,8 +76,6 @@ int get_sensorsout(BMS_V *bmsvp, AHT_V *ahtvp, ENS_V *ensvp){
     Serial.println("BMx280 read error");
 #endif
   }
-  tw.begin(ENSSDA,ENSSCL);
-  delay(50);
   ahtvp->st = aht.readTemperatureHumidity(ahtvp->temp,ahtvp->hum, 120);
   if (ahtvp->st != AHTX_OK){
 #ifdef SERIAL_DEBUG
@@ -221,7 +217,7 @@ void json_handler(void){
 void ens_standardmode(void){
   String result,html;
 
-  ENStw.begin(ENSSDA,ENSSCL);
+  tw.begin(SDA,SCL);
   while( NO_ERR != ENS160.begin() ){
 #ifdef INIT_MESSAGE
     Serial.println("Communication with device failed, please check connection");
@@ -238,7 +234,7 @@ void ens_standardmode(void){
 void ens_lowpowermode(void){
     String result,html;
 
-  ENStw.begin(ENSSDA,ENSSCL);
+  tw.begin(SDA,SCL);
   while( NO_ERR != ENS160.begin() ){
 #ifdef INIT_MESSAGE
     Serial.println("Communication with device failed, please check connection");
@@ -272,8 +268,8 @@ void setup() {
   Serial.print("Connected, IP address: ");
   Serial.println(WiFi.localIP());
 #endif
-  bmxtw.begin(BMSDA,BMSCL);
-  if (!bmx.beginI2C(I2C_ADDR,&bmxtw)) {
+  tw.begin(SDA,SCL);
+  if (!bmx.beginI2C(I2C_ADDR,&tw)) {
 #ifdef INIT_MESSAGE 
     Serial.println("BMx280 not found");
 #endif 
@@ -286,10 +282,6 @@ void setup() {
 
   Serial.println("I2C Continuous");
 #endif
-  delay(20);
-  //init AHT21 
-  tw.begin(ENSSDA,ENSSCL);
-  ENStw.begin(ENSSDA,ENSSCL);
   if (!aht.begin(tw)) {
 #ifdef INIT_MESSAGE 
     Serial.println("AHT begin failed");
